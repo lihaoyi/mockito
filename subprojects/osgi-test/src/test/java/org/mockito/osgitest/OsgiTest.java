@@ -67,9 +67,12 @@ public class OsgiTest extends Suite {
         framework.init();
         BundleContext bundleContext = framework.getBundleContext();
         for (Path dependencyPath : TEST_RUNTIME_BUNDLES) {
+            System.out.println("dependencyPath " + dependencyPath);
             Bundle installedBundle;
             try {
                 installedBundle = bundleContext.installBundle(dependencyPath.toUri().toString());
+                System.out.println("installedBundle " + installedBundle);
+                System.out.println("installedBundle.getSymbolicName() " + installedBundle.getSymbolicName());
             } catch (BundleException e) {
                 throw new IllegalStateException(
                         "Failed to install bundle: " + dependencyPath.getFileName(), e);

@@ -40,10 +40,12 @@ trait MockitoModule extends MavenModule{
   def testIvyDeps: T[Agg[mill.scalalib.Dep]] = Agg.empty[mill.scalalib.Dep]
   def testRuntimeIvyDeps: T[Agg[mill.scalalib.Dep]] = Agg.empty[mill.scalalib.Dep]
   def testFramework = "com.novocode.junit.JUnitFramework"
+  def testForkArgs: T[Seq[String]] = Seq.empty[String]
   object test extends MavenTests{
     def moduleDeps = super.moduleDeps ++ MockitoModule.this.testModuleDeps
     def testFramework = MockitoModule.this.testFramework
     def runIvyDeps = testRuntimeIvyDeps()
+    def forkArgs = testForkArgs()
     def ivyDeps =
       testIvyDeps() ++
       Agg(libraries.hamcrest, libraries.junit4, libraries.bytebuddyagent, ivy"com.github.sbt:junit-interface:0.13.2")
@@ -182,10 +184,33 @@ object mockito extends RootModule with MockitoModule{
     object `memory-test` extends MockitoModule{
       def testModuleDeps = Seq(mockito)
       def testIvyDeps = Agg(libraries.assertj)
-      def forkArgs = Seq("-Xmx128m")
+      def testForkArgs = Seq("-Xmx128m")
     }
-    object osgiTest{
+    object `osgi-test` extends MockitoModule {
+      def testModuleDeps = Seq(mockito)
+      def testIvyDeps = Agg(libraries.junit4, libraries.osgi)
+      def testRuntimeIvyDeps = Agg(libraries.equinox)
+      trait BundleModule extends MockitoModule{
+        def bundleName: String = millModuleSegments.parts.last
+        override def millSourcePath = `osgi-test`.millSourcePath
+        def sources = T.sources(millSourcePath / "src" / bundleName / "java")
 
+        def manifest = super.manifest().add("Bundle-SymbolicName" -> bundleName)
+      }
+      object testBundle extends BundleModule{
+        def moduleDeps = Seq(mockito, otherBundle)
+        def ivyDeps = Agg(libraries.junit4, libraries.bytebuddy, libraries.objenesis)
+      }
+
+      object otherBundle extends BundleModule
+
+      def testRuntimeBundles: T[Seq[PathRef]] = T{
+        Seq(testBundle.jar(), otherBundle.jar()) ++
+        testBundle.upstreamAssemblyClasspath().filter(_.path.ext == "jar")
+      }
+      def testForkArgs = Seq(
+        s"-DtestRuntimeBundles=${testRuntimeBundles().map(_.path).distinct.filter(os.exists(_)).mkString(java.io.File.pathSeparator)}"
+      )
     }
     object `programmatic-test` extends MockitoModule{
       def testModuleDeps = Seq(mockito)
